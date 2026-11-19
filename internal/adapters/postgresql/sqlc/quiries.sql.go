@@ -9,8 +9,33 @@ import (
 	"context"
 )
 
+const createProduct = `-- name: CreateProduct :one
+INSERT INTO products (name, price, quantity)
+VALUES ($1, $2, $3)
+RETURNING id, name, price, quantity, created_at
+`
+
+type CreateProductParams struct {
+	Name     string `json:"name"`
+	Price    int32  `json:"price"`
+	Quantity int32  `json:"quantity"`
+}
+
+func (q *Queries) CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error) {
+	row := q.db.QueryRow(ctx, createProduct, arg.Name, arg.Price, arg.Quantity)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const findProductByID = `-- name: FindProductByID :one
-SELECT id, name, price_in_cents, quantity, created_at FROM products
+SELECT id, name, price, quantity, created_at FROM products
 WHERE id=$1
 `
 
@@ -20,7 +45,7 @@ func (q *Queries) FindProductByID(ctx context.Context, id int64) (Product, error
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.PriceInCents,
+		&i.Price,
 		&i.Quantity,
 		&i.CreatedAt,
 	)
@@ -28,7 +53,7 @@ func (q *Queries) FindProductByID(ctx context.Context, id int64) (Product, error
 }
 
 const listProducts = `-- name: ListProducts :many
-SELECT id, name, price_in_cents, quantity, created_at FROM products
+SELECT id, name, price, quantity, created_at FROM products
 `
 
 func (q *Queries) ListProducts(ctx context.Context) ([]Product, error) {
@@ -43,7 +68,7 @@ func (q *Queries) ListProducts(ctx context.Context) ([]Product, error) {
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.PriceInCents,
+			&i.Price,
 			&i.Quantity,
 			&i.CreatedAt,
 		); err != nil {
