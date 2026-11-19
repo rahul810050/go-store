@@ -2,46 +2,46 @@ package main
 
 import (
 	"context"
+	"log"
 	"log/slog"
 	"os"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 	"github.com/rahul810050/go-store/internal/env"
 )
 
-func main() {
+func main(){
 	ctx := context.Background()
-
-	cfg := config{
+	if err := godotenv.Load(); err != nil {
+        log.Fatal("Error loading .env file")
+    }
+	cfg := Config{
 		addr: ":8080",
-		db:   dbConfig{
-			dsn: env.GetString("GOOSE_DBSTRING", "host=localhost user=postgres password=random123 dbname=goecom sslmode=disable"),
+		db: dbConfig{
+			dbstr: env.GetString("DATABASE_URL", "host=localhost user=postgres password=random123 dbname=ecom sslmode=disable"),
 		},
 	}
-
-	
 
 	// logger
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	// database connection
-	conn, err := pgx.Connect(ctx, cfg.db.dsn)
+	conn, err := pgx.Connect(ctx, cfg.db.dbstr)
 	if err != nil {
 		panic(err)
 	}
 	defer conn.Close(ctx)
 
-	logger.Info("database connection successful", "dns", cfg.db.dsn)
+	log.Println("database connected successfully")
 
 	api := application{
-		config: cfg,
+		cfg: cfg,
 		db: conn,
 	}
-
-	// start server
 	if err := api.run(api.mount()); err != nil {
-		slog.Error("error while starting the server error", err)
+		slog.Error("error while running the server", err)
 		os.Exit(1)
 	}
+	
 }

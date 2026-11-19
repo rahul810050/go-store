@@ -6,12 +6,21 @@ package repo
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
 	CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error)
+	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
+	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	FindProductByID(ctx context.Context, id int64) (Product, error)
+	GetUserByEmail(ctx context.Context, email string) (User, error)
+	GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, error)
+	GetValidRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error)
 	ListProducts(ctx context.Context) ([]Product, error)
+	RevokeRefreshToken(ctx context.Context, tokenHash string) error
+	RevokeRefreshTokenFamily(ctx context.Context, familyID pgtype.UUID) error
 }
 
 var _ Querier = (*Queries)(nil)
