@@ -8,9 +8,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5"
+	"github.com/rahul810050/go-store/cmd/routes"
 	repo "github.com/rahul810050/go-store/internal/adapters/postgresql/sqlc"
-	"github.com/rahul810050/go-store/internal/auth"
-	"github.com/rahul810050/go-store/internal/products"
 )
 
 // user -> GET /products -> service getProducts -> call db SELECT * FROM PRODUCTS
@@ -26,22 +25,10 @@ func (app *application) mount() http.Handler {
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("hi there! its all good"))
 	})
-	productService := products.NewService(repo.New(app.db))
-	productHandler := products.NewHandler(productService)
+	queries := repo.New(app.db)
 
-	// routes
-	r.Get("/products", productHandler.ListProducts)
-	r.Get("/product/{id}", productHandler.FindProductByID)
-	r.Post("/product", productHandler.CreateProduct)
-
-
-	// auth
-	authService := auth.NewService(app.db)
-	authHandler := auth.NewHandler(authService)
-	r.Post("/auth/signup", authHandler.Signup)
-	r.Post("/auth/signin", authHandler.Signin)
-	r.Post("/auth/refresh", authHandler.Refresh)
-	r.Post("/auth/logout", authHandler.Logout)
+    routes.RegisterAuthRoutes(r, app.db)
+    routes.RegisterProductRoutes(r, queries)
 
 	return r
 }
