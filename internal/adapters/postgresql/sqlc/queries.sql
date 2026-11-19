@@ -60,3 +60,74 @@ UPDATE refresh_tokens
 SET revoked_at = NOW()
 WHERE family_id = $1
   AND revoked_at IS NULL;
+
+
+-- name: CreateOrder :one
+INSERT INTO orders (user_id, total_amount)
+VALUES ($1, $2)
+RETURNING *;
+
+
+-- name: GetOrderByID :one
+SELECT * FROM orders
+WHERE id=$1 AND user_id=$2
+LIMIT 1;
+
+
+-- name: ListOrdersByUserID :many
+SELECT * FROM orders
+WHERE user_id=$1
+ORDER BY created_at DESC;
+
+
+-- name: CreateOrderItem :one
+INSERT INTO order_items (
+  order_id,
+  product_id,
+  quantity,
+  unit_price,
+  subtotal
+)
+VALUES ($1,$2,$3,$4, $5)
+RETURNING *;
+
+
+-- name: ListOrderItemsByOrderID :many
+SELECT * FROM order_items
+WHERE order_id=$1;
+
+
+-- name: CreatePayment :one
+INSERT INTO payments (order_id, amount)
+VALUES ($1,$2)
+RETURNING *;
+
+
+-- name: GetPaymentByID :one
+SELECT * FROM payments
+WHERE id=$1
+LIMIT 1;
+
+
+-- name: ListPaymentsByOrderID :many
+SELECT * FROM payments
+WHERE order_id=$1
+ORDER BY created_at DESC;
+
+
+-- name: UpdatePaymentProviderOrderID :one
+UPDATE payments
+SET provider_order_id=$2,
+    status='pending',
+    updated_at=NOW()
+WHERE id=$1
+RETURNING *;
+
+
+-- name: UpdatePaymentStatus :one
+UPDATE payments
+SET status=$2,
+    provider_payment_id=$3,
+    updated_at=NOW()
+WHERE id=$1
+RETURNING *;

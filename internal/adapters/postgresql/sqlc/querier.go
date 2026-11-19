@@ -11,16 +11,26 @@ import (
 )
 
 type Querier interface {
+	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
+	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
+	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
 	CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
 	FindProductByID(ctx context.Context, id int64) (Product, error)
+	GetOrderByID(ctx context.Context, arg GetOrderByIDParams) (Order, error)
+	GetPaymentByID(ctx context.Context, id int64) (Payment, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, error)
 	GetValidRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error)
+	ListOrderItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItem, error)
+	ListOrdersByUserID(ctx context.Context, userID int64) ([]Order, error)
+	ListPaymentsByOrderID(ctx context.Context, orderID int64) ([]Payment, error)
 	ListProducts(ctx context.Context) ([]Product, error)
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	RevokeRefreshTokenFamily(ctx context.Context, familyID pgtype.UUID) error
+	UpdatePaymentProviderOrderID(ctx context.Context, arg UpdatePaymentProviderOrderIDParams) (Payment, error)
+	UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStatusParams) (Payment, error)
 }
 
 var _ Querier = (*Queries)(nil)

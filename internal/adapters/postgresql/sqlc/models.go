@@ -8,10 +8,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Order struct {
+	ID          int64              `json:"id"`
+	UserID      int64              `json:"user_id"`
+	TotalAmount int64              `json:"total_amount"`
+	Status      string             `json:"status"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type OrderItem struct {
+	ID        int64 `json:"id"`
+	OrderID   int64 `json:"order_id"`
+	ProductID int64 `json:"product_id"`
+	Quantity  int32 `json:"quantity"`
+	UnitPrice int64 `json:"unit_price"`
+	Subtotal  int64 `json:"subtotal"`
+}
+
+type Payment struct {
+	ID                int64              `json:"id"`
+	OrderID           int64              `json:"order_id"`
+	Amount            int64              `json:"amount"`
+	Currency          string             `json:"currency"`
+	Status            string             `json:"status"`
+	Provider          string             `json:"provider"`
+	ProviderOrderID   pgtype.Text        `json:"provider_order_id"`
+	ProviderPaymentID pgtype.Text        `json:"provider_payment_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Product struct {
 	ID        int64              `json:"id"`
 	Name      string             `json:"name"`
-	Price     int32              `json:"price"`
+	Price     int64              `json:"price"`
 	Quantity  int32              `json:"quantity"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
