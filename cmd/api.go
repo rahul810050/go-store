@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/rahul810050/go-store/cmd/routes"
 	repo "github.com/rahul810050/go-store/internal/adapters/postgresql/sqlc"
+	"github.com/razorpay/razorpay-go"
 )
 
 // user -> GET /products -> service getProducts -> call db SELECT * FROM PRODUCTS
@@ -30,6 +31,7 @@ func (app *application) mount() http.Handler {
     routes.RegisterAuthRoutes(r, app.db)
     routes.RegisterProductRoutes(r, queries)
 	routes.RegisterOrderRoutes(r, app.db)
+	routes.RegisterPaymentRoutes(r, queries, app.razorpayClient, app.cfg.RazorpayKeyID)
 
 	return r
 }
@@ -50,11 +52,14 @@ func (app *application) run(h http.Handler) error {
 type application struct {
 	cfg Config
 	db *pgx.Conn
+	razorpayClient *razorpay.Client
 }
 
 type Config struct {
 	addr string
 	db dbConfig
+	RazorpayKeyID string
+	RazorpayKeySecret string
 }
 
 type dbConfig struct {

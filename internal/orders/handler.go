@@ -50,7 +50,7 @@ func (h *handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	jsonwriter.Write(w, http.StatusOK, order)
+	jsonwriter.Write(w, http.StatusCreated, order)
 }
 
 
