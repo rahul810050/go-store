@@ -19,8 +19,15 @@ type OrderItemInput struct {
 	Quantity  int32 `json:"quantity"`
 }
 
+type OrderResponse struct {
+	Order repo.Order
+	Items []repo.OrderItem
+}
+
 type Service interface {
 	CreateOrder(ctx context.Context, userID int64, input CreateOrderInput) (repo.Order, error)
+	ListOrders(ctx context.Context, userID int64) ([]OrderResponse, error) 
+	GetOrderByID(ctx context.Context, userID int64, orderID int64) (OrderResponse, error)
 }
 
 type service struct {
@@ -165,4 +172,58 @@ func (s *service) CreateOrder(ctx context.Context, userID int64, input CreateOrd
 	}
 
 	return order, nil
+}
+
+
+func (s *service) ListOrders(ctx context.Context, userID int64) ([]OrderResponse, error) {
+	if userID <= 0 {
+		return nil, errors.New("Invalid user")
+	}
+
+	orders, err := s.repo.ListOrdersByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]OrderResponse, 0, len(orders))
+
+	for _, order := range orders {
+		items, err := s.repo.ListOrderItemsByOrderID(ctx, order.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, OrderResponse{
+			Order: order,
+			Items: items,
+		})
+	}
+	return result, nil
+}
+
+func (s *service) GetOrderByID(ctx context.Context, userID int64, orderID int64) (OrderResponse, error) {
+	if orderID <= 0 || userID <= 0 {
+		return OrderResponse{}, ErrProductNotFound
+	}
+
+	order, err := s.repo.GetOrderByID(ctx, repo.GetOrderByIDParams{
+		ID: orderID,
+		UserID: userID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return OrderResponse{}, ErrOrderNotFound
+		}
+		return OrderResponse{}, err
+	}
+
+	items, err := s.repo.ListOrderItemsByOrderID(ctx, order.ID)
+	if err != nil {
+		return OrderResponse{}, err
+	}
+
+	return OrderResponse{
+		Order: order,
+		Items: items,
+	}, nil
 }

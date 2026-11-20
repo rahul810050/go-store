@@ -16,6 +16,8 @@ func RegisterOrderRoutes(r chi.Router, db *pgx.Conn){
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.AuthMiddleware)
 			r.Post("/", orderHandler.CreateOrder)
+			r.Get("/", orderHandler.ListOrders)
+			r.Get("/{id}", orderHandler.GetOrderByID)
 		})
 	})
 }

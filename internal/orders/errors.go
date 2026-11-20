@@ -8,4 +8,5 @@ var (
     ErrDuplicateProduct = errors.New("duplicate product in order")
     ErrProductNotFound  = errors.New("product not found")
     ErrInsufficientStock = errors.New("insufficient product stock")
+	ErrOrderNotFound = errors.New("order not found")
 )
