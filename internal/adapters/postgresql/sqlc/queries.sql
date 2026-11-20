@@ -145,3 +145,24 @@ UPDATE products
 SET quantity=quantity-$2
 WHERE id=$1 AND quantity >= $2
 RETURNING *;
+
+
+-- name: GetPaymentByProviderOrderID :one
+SELECT * FROM payments
+WHERE provider_order_id=$1
+LIMIT 1;
+
+
+-- name: UpdateOrderStatus :one
+UPDATE orders
+SET status=$2,
+    updated_at=NOW()
+WHERE id=$1
+RETURNING *;
+
+
+-- name: GetPaymentByIDForUpdate :one
+SELECT *
+FROM payments
+WHERE id = $1
+FOR UPDATE;

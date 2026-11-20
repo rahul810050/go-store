@@ -13,6 +13,12 @@ type CreatePaymentRequest struct {
 	OrderID int64 `json:"order_id"`
 }
 
+type VerifyPaymentRequest struct {
+    RazorpayOrderID   string `json:"razorpay_order_id"`
+    RazorpayPaymentID string `json:"razorpay_payment_id"`
+    RazorpaySignature string `json:"razorpay_signature"`
+}
+
 type handler struct {
 	service Service
 }
@@ -60,4 +66,44 @@ func (h *handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonwriter.Write(w, http.StatusCreated, payment)
+}
+
+
+
+func (h *handler) VerifyPayment(w http.ResponseWriter, r *http.Request) {
+	userID, ok := middleware.UserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var input VerifyPaymentRequest
+
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	// verify payment
+	err := h.service.VerifyPayment(r.Context(), userID, input)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidPayment),
+			errors.Is(err, ErrInvalidSignature),
+			errors.Is(err, ErrPaymentMismatch):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		case errors.Is(err, ErrPaymentNotFound):
+			http.Error(w, err.Error(), http.StatusNotFound)
+		case errors.Is(err, ErrPaymentNotCaptured):
+			http.Error(w, err.Error(), http.StatusConflict)
+		default:
+			http.Error(w, "Failed to verify payment", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	jsonwriter.Write(w, http.StatusOK, map[string]string{
+		"message": "Payment verified successfully",
+	})
 }

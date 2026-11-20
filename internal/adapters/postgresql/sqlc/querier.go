@@ -21,6 +21,8 @@ type Querier interface {
 	FindProductByID(ctx context.Context, id int64) (Product, error)
 	GetOrderByID(ctx context.Context, arg GetOrderByIDParams) (Order, error)
 	GetPaymentByID(ctx context.Context, id int64) (Payment, error)
+	GetPaymentByIDForUpdate(ctx context.Context, id int64) (Payment, error)
+	GetPaymentByProviderOrderID(ctx context.Context, providerOrderID pgtype.Text) (Payment, error)
 	GetProductForUpdate(ctx context.Context, id int64) (Product, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, error)
@@ -31,6 +33,7 @@ type Querier interface {
 	ListProducts(ctx context.Context) ([]Product, error)
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	RevokeRefreshTokenFamily(ctx context.Context, familyID pgtype.UUID) error
+	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Order, error)
 	UpdatePaymentProviderOrderID(ctx context.Context, arg UpdatePaymentProviderOrderIDParams) (Payment, error)
 	UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStatusParams) (Payment, error)
 }

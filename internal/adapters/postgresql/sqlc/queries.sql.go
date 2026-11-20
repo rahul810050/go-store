@@ -295,6 +295,55 @@ func (q *Queries) GetPaymentByID(ctx context.Context, id int64) (Payment, error)
 	return i, err
 }
 
+const getPaymentByIDForUpdate = `-- name: GetPaymentByIDForUpdate :one
+SELECT id, order_id, amount, currency, status, provider, provider_order_id, provider_payment_id, created_at, updated_at
+FROM payments
+WHERE id = $1
+FOR UPDATE
+`
+
+func (q *Queries) GetPaymentByIDForUpdate(ctx context.Context, id int64) (Payment, error) {
+	row := q.db.QueryRow(ctx, getPaymentByIDForUpdate, id)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.OrderID,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.Provider,
+		&i.ProviderOrderID,
+		&i.ProviderPaymentID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getPaymentByProviderOrderID = `-- name: GetPaymentByProviderOrderID :one
+SELECT id, order_id, amount, currency, status, provider, provider_order_id, provider_payment_id, created_at, updated_at FROM payments
+WHERE provider_order_id=$1
+LIMIT 1
+`
+
+func (q *Queries) GetPaymentByProviderOrderID(ctx context.Context, providerOrderID pgtype.Text) (Payment, error) {
+	row := q.db.QueryRow(ctx, getPaymentByProviderOrderID, providerOrderID)
+	var i Payment
+	err := row.Scan(
+		&i.ID,
+		&i.OrderID,
+		&i.Amount,
+		&i.Currency,
+		&i.Status,
+		&i.Provider,
+		&i.ProviderOrderID,
+		&i.ProviderPaymentID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getProductForUpdate = `-- name: GetProductForUpdate :one
 SELECT id, name, price, quantity, created_at
 FROM products
@@ -545,6 +594,33 @@ WHERE family_id = $1
 func (q *Queries) RevokeRefreshTokenFamily(ctx context.Context, familyID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, revokeRefreshTokenFamily, familyID)
 	return err
+}
+
+const updateOrderStatus = `-- name: UpdateOrderStatus :one
+UPDATE orders
+SET status=$2,
+    updated_at=NOW()
+WHERE id=$1
+RETURNING id, user_id, total_amount, status, created_at, updated_at
+`
+
+type UpdateOrderStatusParams struct {
+	ID     int64  `json:"id"`
+	Status string `json:"status"`
+}
+
+func (q *Queries) UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Order, error) {
+	row := q.db.QueryRow(ctx, updateOrderStatus, arg.ID, arg.Status)
+	var i Order
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.TotalAmount,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updatePaymentProviderOrderID = `-- name: UpdatePaymentProviderOrderID :one

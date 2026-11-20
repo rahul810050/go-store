@@ -31,7 +31,7 @@ func (app *application) mount() http.Handler {
     routes.RegisterAuthRoutes(r, app.db)
     routes.RegisterProductRoutes(r, queries)
 	routes.RegisterOrderRoutes(r, app.db)
-	routes.RegisterPaymentRoutes(r, queries, app.razorpayClient, app.cfg.RazorpayKeyID)
+	routes.RegisterPaymentRoutes(r, app.db, app.razorpayClient, app.cfg.RazorpayKeyID, app.cfg.RazorpayKeySecret)
 
 	return r
 }

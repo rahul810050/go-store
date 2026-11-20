@@ -2,6 +2,9 @@ package payments
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 
@@ -23,20 +26,41 @@ type PaymentResponse struct {
 
 type Service interface {
 	CreatePayment(ctx context.Context, userID int64, orderID int64) (PaymentResponse, error)
+	VerifyPayment(ctx context.Context, userID int64, input VerifyPaymentRequest) error
+}
+
+func verifyRazorpaySignature(orderID, paymentID, signature, secret string) bool {
+	// construct the message
+	// razorpay's signature formula requires the orderID followed by a pipe (|) and the paymentID
+	message := orderID + "|" + paymentID
+	
+	// generate a cryptographic signature using private Razorpay Key Secret
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(message))
+	
+	// convert the signature into hexadecimal
+	expectedSignature := hex.EncodeToString(h.Sum(nil))
+
+	// compare signature
+	return hmac.Equal([]byte(expectedSignature), []byte(signature))
 }
 
 type service struct {
 	repo repo.Querier
+	db *pgx.Conn
 	razorpayClient *razorpay.Client
 	razorpayKeyID string
+	razorpayKeySecret string
 }
 
 
-func NewService(repo repo.Querier, razorpayClient *razorpay.Client, razorpayKeyID string) Service {
+func NewService(db *pgx.Conn, razorpayClient *razorpay.Client, razorpayKeyID string, razorpayKeySecret string) Service {
 	return &service{
-		repo: repo,
+		repo: repo.New(db),
+		db: db,
 		razorpayClient: razorpayClient,
 		razorpayKeyID: razorpayKeyID,
+		razorpayKeySecret: razorpayKeySecret,
 	}
 }
 
@@ -114,4 +138,146 @@ func (s *service) CreatePayment(ctx context.Context, userID int64, orderID int64
 		RazorpayKeyID:   s.razorpayKeyID,
 		RazorpayOrderID: providerOrderID,
 	}, nil
+}
+
+
+func (s *service) VerifyPayment(ctx context.Context, userID int64, input VerifyPaymentRequest) error {
+	if userID <= 0 ||
+		input.RazorpayOrderID == "" ||
+		input.RazorpayPaymentID == "" ||
+		input.RazorpaySignature == "" {
+		return ErrInvalidPayment
+	}
+
+	// get payment
+	payment, err := s.repo.GetPaymentByProviderOrderID(ctx, pgtype.Text{
+		String: input.RazorpayOrderID,
+		Valid: true,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrPaymentNotFound
+		}
+		return err
+	}
+
+	// get order
+	_, err = s.repo.GetOrderByID(ctx, repo.GetOrderByIDParams{
+		ID: payment.OrderID,
+		UserID: userID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrPaymentNotFound
+		}
+		return err
+	}
+
+	if payment.Status == "success" {
+		return nil
+	}
+
+	if payment.Status != "pending" {
+		return ErrInvalidPayment
+	}
+
+	// verify signature
+	isSignatureValid := verifyRazorpaySignature(
+		payment.ProviderOrderID.String,
+		input.RazorpayPaymentID,
+		input.RazorpaySignature,
+		s.razorpayKeySecret,
+	)
+	if !isSignatureValid {
+		return ErrInvalidSignature
+	}
+
+	// retrieve payment details from Razorpay
+	razorpayPayment, err := s.razorpayClient.Payment.Fetch(
+		input.RazorpayPaymentID,
+		nil,
+		nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	razorpayOrderID, orderOK := razorpayPayment["order_id"].(string)
+	razorpayPaymentID, paymentOK := razorpayPayment["id"].(string)
+	razorpayAmount, amountOK := razorpayPayment["amount"].(float64)
+	razorpayCurrency, currencyOK := razorpayPayment["currency"].(string)
+	razorpayStatus, statusOK := razorpayPayment["status"].(string)
+	captured, capturedOK := razorpayPayment["captured"].(bool)
+
+	if !orderOK || !paymentOK || !amountOK ||
+		!currencyOK || !statusOK || !capturedOK {
+		return ErrPaymentMismatch
+	}
+
+	if razorpayOrderID != payment.ProviderOrderID.String ||
+		razorpayPaymentID != input.RazorpayPaymentID ||
+		int64(razorpayAmount) != payment.Amount ||
+		razorpayCurrency != payment.Currency {
+		return ErrPaymentMismatch
+	}
+
+	if razorpayStatus != "captured" || !captured {
+		return ErrPaymentNotCaptured
+	}
+
+	// create transaction
+	tx, err := s.db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	// to make sure our updates belong to same transaction
+	qtx := repo.New(tx)
+
+	// lock payment row for concurrency
+	lockedPayment, err := qtx.GetPaymentByIDForUpdate(ctx, payment.ID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrPaymentNotFound
+		}
+	}
+
+	// recheck payment status after locking the row
+	if lockedPayment.Status == "success" {
+		return nil
+	}
+
+	if lockedPayment.Status != "pending" {
+		return ErrInvalidPayment
+	}
+
+	// update payment status
+	_, err = qtx.UpdatePaymentStatus(ctx, repo.UpdatePaymentStatusParams{
+		ID: payment.ID,
+		Status: "success",
+		ProviderPaymentID: pgtype.Text{
+			String: input.RazorpayPaymentID,
+			Valid: true,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	// update order status
+	_, err = qtx.UpdateOrderStatus(ctx, repo.UpdateOrderStatusParams{
+		ID: payment.OrderID,
+		Status: "confirmed",
+	})
+	if err != nil {
+		return err
+	}
+
+	// commit transaction
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
