@@ -29,6 +29,7 @@ func (app *application) mount() http.Handler {
 
     routes.RegisterAuthRoutes(r, app.db)
     routes.RegisterProductRoutes(r, queries)
+	routes.RegisterOrderRoutes(r, app.db)
 
 	return r
 }

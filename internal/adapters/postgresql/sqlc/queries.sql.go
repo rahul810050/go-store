@@ -203,6 +203,31 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const decreaseProductStock = `-- name: DecreaseProductStock :one
+UPDATE products
+SET quantity=quantity-$2
+WHERE id=$1 AND quantity >= $2
+RETURNING id, name, price, quantity, created_at
+`
+
+type DecreaseProductStockParams struct {
+	ID       int64 `json:"id"`
+	Quantity int32 `json:"quantity"`
+}
+
+func (q *Queries) DecreaseProductStock(ctx context.Context, arg DecreaseProductStockParams) (Product, error) {
+	row := q.db.QueryRow(ctx, decreaseProductStock, arg.ID, arg.Quantity)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const findProductByID = `-- name: FindProductByID :one
 SELECT id, name, price, quantity, created_at FROM products
 WHERE id=$1
@@ -266,6 +291,26 @@ func (q *Queries) GetPaymentByID(ctx context.Context, id int64) (Payment, error)
 		&i.ProviderPaymentID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getProductForUpdate = `-- name: GetProductForUpdate :one
+SELECT id, name, price, quantity, created_at
+FROM products
+WHERE id = $1
+FOR UPDATE
+`
+
+func (q *Queries) GetProductForUpdate(ctx context.Context, id int64) (Product, error) {
+	row := q.db.QueryRow(ctx, getProductForUpdate, id)
+	var i Product
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Price,
+		&i.Quantity,
+		&i.CreatedAt,
 	)
 	return i, err
 }

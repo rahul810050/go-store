@@ -131,3 +131,17 @@ SET status=$2,
     updated_at=NOW()
 WHERE id=$1
 RETURNING *;
+
+
+-- name: GetProductForUpdate :one
+SELECT *
+FROM products
+WHERE id = $1
+FOR UPDATE;
+
+
+-- name: DecreaseProductStock :one
+UPDATE products
+SET quantity=quantity-$2
+WHERE id=$1 AND quantity >= $2
+RETURNING *;
