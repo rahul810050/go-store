@@ -166,3 +166,9 @@ SELECT *
 FROM payments
 WHERE id = $1
 FOR UPDATE;
+
+
+-- name: CreateWebhookEvent :exec
+INSERT INTO webhook_events (provider, event_id, event_type, payload)
+VALUES ('razorpay', $1, $2, $3) 
+ON CONFLICT (provider, event_id) DO NOTHING;

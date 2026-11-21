@@ -17,6 +17,7 @@ type Querier interface {
 	CreateProduct(ctx context.Context, arg CreateProductParams) (Product, error)
 	CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) (RefreshToken, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error)
+	CreateWebhookEvent(ctx context.Context, arg CreateWebhookEventParams) error
 	DecreaseProductStock(ctx context.Context, arg DecreaseProductStockParams) (Product, error)
 	FindProductByID(ctx context.Context, id int64) (Product, error)
 	GetOrderByID(ctx context.Context, arg GetOrderByIDParams) (Order, error)

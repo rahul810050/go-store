@@ -24,10 +24,14 @@ func main(){
 		},
 		RazorpayKeyID: env.GetString("RAZORPAY_KEY_ID", ""),
 		RazorpayKeySecret: env.GetString("RAZORPAY_KEY_SECRET", ""),
+		RazorpayWebhookSecret: env.GetString("RAZORPAY_WEBHOOK_SECRET", ""),
 	}
 
 	if cfg.RazorpayKeyID == "" || cfg.RazorpayKeySecret == "" {
 		log.Fatal("Razorpay API credentials are missing")
+	}
+	if cfg.RazorpayWebhookSecret == "" {
+		log.Fatal("Razorpay webhook secret is missing")
 	}
 
 	// logger

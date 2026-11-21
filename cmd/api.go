@@ -32,6 +32,7 @@ func (app *application) mount() http.Handler {
     routes.RegisterProductRoutes(r, queries)
 	routes.RegisterOrderRoutes(r, app.db)
 	routes.RegisterPaymentRoutes(r, app.db, app.razorpayClient, app.cfg.RazorpayKeyID, app.cfg.RazorpayKeySecret)
+	routes.RegisterWebhookRoutes(r, app.db, app.cfg.RazorpayWebhookSecret)
 
 	return r
 }
@@ -60,6 +61,7 @@ type Config struct {
 	db dbConfig
 	RazorpayKeyID string
 	RazorpayKeySecret string
+	RazorpayWebhookSecret string
 }
 
 type dbConfig struct {

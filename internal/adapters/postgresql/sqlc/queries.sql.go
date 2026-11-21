@@ -203,6 +203,23 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateU
 	return i, err
 }
 
+const createWebhookEvent = `-- name: CreateWebhookEvent :exec
+INSERT INTO webhook_events (provider, event_id, event_type, payload)
+VALUES ('razorpay', $1, $2, $3) 
+ON CONFLICT (provider, event_id) DO NOTHING
+`
+
+type CreateWebhookEventParams struct {
+	EventID   string `json:"event_id"`
+	EventType string `json:"event_type"`
+	Payload   []byte `json:"payload"`
+}
+
+func (q *Queries) CreateWebhookEvent(ctx context.Context, arg CreateWebhookEventParams) error {
+	_, err := q.db.Exec(ctx, createWebhookEvent, arg.EventID, arg.EventType, arg.Payload)
+	return err
+}
+
 const decreaseProductStock = `-- name: DecreaseProductStock :one
 UPDATE products
 SET quantity=quantity-$2
