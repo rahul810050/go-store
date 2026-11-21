@@ -9,17 +9,18 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	repo "github.com/rahul810050/go-store/internal/adapters/postgresql/sqlc"
 )
 
 
 type worker struct {
 	repo repo.Querier
-	db *pgx.Conn
+	db *pgxpool.Pool
 }
 
 
-func NewWorker(db *pgx.Conn) *worker {
+func NewWorker(db *pgxpool.Pool) *worker {
 	return &worker{
 		repo: repo.New(db),
 		db: db,
@@ -235,6 +236,11 @@ func (w *worker) RunOnce(ctx context.Context) error {
 
 
 func (w *worker) Run(ctx context.Context, interval time.Duration) {
+	// process any existing events immediately on startup.
+	if err := w.RunOnce(ctx); err != nil {
+		log.Printf("webhook worker error: %v", err)
+	}
+
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -243,6 +249,7 @@ func (w *worker) Run(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			log.Println("webhook worker stopped")
 			return
+
 		case <-ticker.C:
 			if err := w.RunOnce(ctx); err != nil {
 				log.Printf("webhook worker error: %v", err)
