@@ -20,5 +20,10 @@ CREATE TABLE webhook_events (
     UNIQUE (provider, event_id)
 );
 
+ALTER TABLE webhook_events
+ADD COLUMN next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
 -- +goose Down
 DROP TABLE webhook_events;
+ALTER TABLE webhook_events
+DROP COLUMN next_attempt_at;

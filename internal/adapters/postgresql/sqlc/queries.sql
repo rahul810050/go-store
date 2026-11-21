@@ -172,3 +172,57 @@ FOR UPDATE;
 INSERT INTO webhook_events (provider, event_id, event_type, payload)
 VALUES ('razorpay', $1, $2, $3) 
 ON CONFLICT (provider, event_id) DO NOTHING;
+
+
+-- name: ClaimPendingWebhookEvent :one
+WITH next_event AS (
+    SELECT id
+    FROM webhook_events
+    WHERE (
+        status = 'pending'
+        OR (status = 'failed' AND attempts < 5)
+    )
+    AND next_attempt_at <= NOW()
+    ORDER BY received_at ASC
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE webhook_events AS we
+SET status = 'processing',
+    attempts = attempts + 1,
+    processing_started_at = NOW()
+FROM next_event
+WHERE we.id = next_event.id
+RETURNING we.*;
+
+
+-- name: MarkWebhookEventAsProcessed :exec
+UPDATE webhook_events
+SET status = 'processed',
+    processed_at = NOW(),
+    last_error = NULL
+WHERE id = $1;
+
+
+-- name: MarkWebhookEventAsFailed :exec
+UPDATE webhook_events
+SET status = 'failed',
+    last_error = $2,
+    next_attempt_at = CASE
+        WHEN attempts = 1 THEN NOW() + INTERVAL '30 seconds'
+        WHEN attempts = 2 THEN NOW() + INTERVAL '2 minutes'
+        WHEN attempts = 3 THEN NOW() + INTERVAL '5 minutes'
+        WHEN attempts = 4 THEN NOW() + INTERVAL '15 minutes'
+        ELSE NOW()
+    END
+WHERE id = $1;
+
+
+-- name: RecoverStaleWebhookEvents :exec
+UPDATE webhook_events
+SET status = 'failed',
+    last_error = 'worker timed out while processing event',
+    next_attempt_at = NOW(),
+    processing_started_at = NULL
+WHERE status = 'processing'
+  AND processing_started_at < NOW() - INTERVAL '5 minutes';

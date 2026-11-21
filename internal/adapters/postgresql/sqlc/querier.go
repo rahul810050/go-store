@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	ClaimPendingWebhookEvent(ctx context.Context) (WebhookEvent, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
@@ -32,6 +33,9 @@ type Querier interface {
 	ListOrdersByUserID(ctx context.Context, userID int64) ([]Order, error)
 	ListPaymentsByOrderID(ctx context.Context, orderID int64) ([]Payment, error)
 	ListProducts(ctx context.Context) ([]Product, error)
+	MarkWebhookEventAsFailed(ctx context.Context, arg MarkWebhookEventAsFailedParams) error
+	MarkWebhookEventAsProcessed(ctx context.Context, id int64) error
+	RecoverStaleWebhookEvents(ctx context.Context) error
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	RevokeRefreshTokenFamily(ctx context.Context, familyID pgtype.UUID) error
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Order, error)

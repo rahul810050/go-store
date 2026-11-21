@@ -11,6 +11,48 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimPendingWebhookEvent = `-- name: ClaimPendingWebhookEvent :one
+WITH next_event AS (
+    SELECT id
+    FROM webhook_events
+    WHERE (
+        status = 'pending'
+        OR (status = 'failed' AND attempts < 5)
+    )
+    AND next_attempt_at <= NOW()
+    ORDER BY received_at ASC
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+)
+UPDATE webhook_events AS we
+SET status = 'processing',
+    attempts = attempts + 1,
+    processing_started_at = NOW()
+FROM next_event
+WHERE we.id = next_event.id
+RETURNING we.id, we.provider, we.event_id, we.event_type, we.payload, we.status, we.attempts, we.last_error, we.received_at, we.processed_at, we.next_attempt_at, we.processing_started_at
+`
+
+func (q *Queries) ClaimPendingWebhookEvent(ctx context.Context) (WebhookEvent, error) {
+	row := q.db.QueryRow(ctx, claimPendingWebhookEvent)
+	var i WebhookEvent
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.EventID,
+		&i.EventType,
+		&i.Payload,
+		&i.Status,
+		&i.Attempts,
+		&i.LastError,
+		&i.ReceivedAt,
+		&i.ProcessedAt,
+		&i.NextAttemptAt,
+		&i.ProcessingStartedAt,
+	)
+	return i, err
+}
+
 const createOrder = `-- name: CreateOrder :one
 INSERT INTO orders (user_id, total_amount)
 VALUES ($1, $2)
@@ -587,6 +629,58 @@ func (q *Queries) ListProducts(ctx context.Context) ([]Product, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const markWebhookEventAsFailed = `-- name: MarkWebhookEventAsFailed :exec
+UPDATE webhook_events
+SET status = 'failed',
+    last_error = $2,
+    next_attempt_at = CASE
+        WHEN attempts = 1 THEN NOW() + INTERVAL '30 seconds'
+        WHEN attempts = 2 THEN NOW() + INTERVAL '2 minutes'
+        WHEN attempts = 3 THEN NOW() + INTERVAL '5 minutes'
+        WHEN attempts = 4 THEN NOW() + INTERVAL '15 minutes'
+        ELSE NOW()
+    END
+WHERE id = $1
+`
+
+type MarkWebhookEventAsFailedParams struct {
+	ID        int64       `json:"id"`
+	LastError pgtype.Text `json:"last_error"`
+}
+
+func (q *Queries) MarkWebhookEventAsFailed(ctx context.Context, arg MarkWebhookEventAsFailedParams) error {
+	_, err := q.db.Exec(ctx, markWebhookEventAsFailed, arg.ID, arg.LastError)
+	return err
+}
+
+const markWebhookEventAsProcessed = `-- name: MarkWebhookEventAsProcessed :exec
+UPDATE webhook_events
+SET status = 'processed',
+    processed_at = NOW(),
+    last_error = NULL
+WHERE id = $1
+`
+
+func (q *Queries) MarkWebhookEventAsProcessed(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, markWebhookEventAsProcessed, id)
+	return err
+}
+
+const recoverStaleWebhookEvents = `-- name: RecoverStaleWebhookEvents :exec
+UPDATE webhook_events
+SET status = 'failed',
+    last_error = 'worker timed out while processing event',
+    next_attempt_at = NOW(),
+    processing_started_at = NULL
+WHERE status = 'processing'
+  AND processing_started_at < NOW() - INTERVAL '5 minutes'
+`
+
+func (q *Queries) RecoverStaleWebhookEvents(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, recoverStaleWebhookEvents)
+	return err
 }
 
 const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
