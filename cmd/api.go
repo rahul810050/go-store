@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rahul810050/go-store/cmd/routes"
 	repo "github.com/rahul810050/go-store/internal/adapters/postgresql/sqlc"
 	"github.com/razorpay/razorpay-go"
@@ -52,7 +52,7 @@ func (app *application) run(h http.Handler) error {
 
 type application struct {
 	cfg Config
-	db *pgx.Conn
+	db *pgxpool.Pool
 	razorpayClient *razorpay.Client
 }
 

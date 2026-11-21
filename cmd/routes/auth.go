@@ -2,12 +2,12 @@ package routes
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rahul810050/go-store/internal/auth"
 )
 
 
-func RegisterAuthRoutes(r chi.Router, db *pgx.Conn) {
+func RegisterAuthRoutes(r chi.Router, db *pgxpool.Pool) {
 	authService := auth.NewService(db)
 	authHandler := auth.NewHandler(authService)
 

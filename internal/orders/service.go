@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	repo "github.com/rahul810050/go-store/internal/adapters/postgresql/sqlc"
 )
 
@@ -32,10 +33,10 @@ type Service interface {
 
 type service struct {
 	repo repo.Querier
-	db   *pgx.Conn
+	db   *pgxpool.Pool
 }
 
-func NewService(db *pgx.Conn) Service {
+func NewService(db *pgxpool.Pool) Service {
 	return &service{
 		repo: repo.New(db),
 		db:   db,

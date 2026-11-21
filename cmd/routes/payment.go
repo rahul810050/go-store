@@ -2,13 +2,13 @@ package routes
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rahul810050/go-store/internal/middleware"
 	"github.com/rahul810050/go-store/internal/payments"
 	"github.com/razorpay/razorpay-go"
 )
 
-func RegisterPaymentRoutes(r chi.Router, db *pgx.Conn, razorpayClient *razorpay.Client, razorpayKeyID string, razorpayKeySecret string) {
+func RegisterPaymentRoutes(r chi.Router, db *pgxpool.Pool, razorpayClient *razorpay.Client, razorpayKeyID string, razorpayKeySecret string) {
 	paymentService := payments.NewService(db, razorpayClient, razorpayKeyID, razorpayKeySecret)
 	paymentHandler := payments.NewHandler(paymentService)
 

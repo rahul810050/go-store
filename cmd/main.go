@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/rahul810050/go-store/internal/env"
 	"github.com/razorpay/razorpay-go"
@@ -38,11 +38,15 @@ func main(){
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(logger)
 
-	conn, err := pgx.Connect(ctx, cfg.db.dbstr)
+	pool, err := pgxpool.New(ctx, cfg.db.dbstr)
 	if err != nil {
-		panic(err)
+		log.Fatal("failed to create database pool:", err)
 	}
-	defer conn.Close(ctx)
+	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		log.Fatal("failed to connect to database:", err)
+	}
 
 	log.Println("database connected successfully")
 
@@ -54,7 +58,7 @@ func main(){
 
 	api := application{
 		cfg: cfg,
-		db: conn,
+		db: pool,
 		razorpayClient: razorpayClient,
 	}
 	if err := api.run(api.mount()); err != nil {

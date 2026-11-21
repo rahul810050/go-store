@@ -2,13 +2,13 @@ package routes
 
 import (
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rahul810050/go-store/internal/middleware"
 	"github.com/rahul810050/go-store/internal/orders"
 )
 
 
-func RegisterOrderRoutes(r chi.Router, db *pgx.Conn){
+func RegisterOrderRoutes(r chi.Router, db *pgxpool.Pool){
 	orderService := orders.NewService(db)
 	orderHandler := orders.NewHandler(orderService)
 

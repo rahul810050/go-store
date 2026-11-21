@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	repo "github.com/rahul810050/go-store/internal/adapters/postgresql/sqlc"
 	"github.com/razorpay/razorpay-go"
 )
@@ -47,14 +48,14 @@ func verifyRazorpaySignature(orderID, paymentID, signature, secret string) bool 
 
 type service struct {
 	repo repo.Querier
-	db *pgx.Conn
+	db *pgxpool.Pool
 	razorpayClient *razorpay.Client
 	razorpayKeyID string
 	razorpayKeySecret string
 }
 
 
-func NewService(db *pgx.Conn, razorpayClient *razorpay.Client, razorpayKeyID string, razorpayKeySecret string) Service {
+func NewService(db *pgxpool.Pool, razorpayClient *razorpay.Client, razorpayKeyID string, razorpayKeySecret string) Service {
 	return &service{
 		repo: repo.New(db),
 		db: db,
