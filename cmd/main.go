@@ -5,15 +5,24 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 	"github.com/rahul810050/go-store/internal/env"
+	"github.com/rahul810050/go-store/internal/webhooks"
 	"github.com/razorpay/razorpay-go"
 )
 
 func main(){
-	ctx := context.Background()
+	ctx, stop := signal.NotifyContext(
+		context.Background(),
+		os.Interrupt,
+		syscall.SIGTERM,
+	)
+	defer stop()
 	if err := godotenv.Load(); err != nil {
         log.Fatal("Error loading .env file")
     }
@@ -61,9 +70,21 @@ func main(){
 		db: pool,
 		razorpayClient: razorpayClient,
 	}
-	if err := api.run(api.mount()); err != nil {
+	// start workers
+	webhookWorker := webhooks.NewWorker(pool)
+	workerDone := make(chan struct{})
+
+	go func() {
+		defer close(workerDone)
+		webhookWorker.Run(ctx, 5*time.Second)
+	}()
+	if err := api.run(ctx, api.mount()); err != nil {
 		slog.Error("error while running the server", err)
-		os.Exit(1)
 	}
+
+	stop()
+	<-workerDone
+
+	log.Println("application shutdown complete")
 	
 }

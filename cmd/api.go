@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"time"
@@ -38,16 +40,40 @@ func (app *application) mount() http.Handler {
 }
 
 // run
-func (app *application) run(h http.Handler) error {
+func (app *application) run(ctx context.Context, h http.Handler) error {
 	srv := &http.Server{
-		Addr: app.cfg.addr,
-		Handler: h,
-		ReadTimeout: time.Second * 30,
-		WriteTimeout: time.Second * 10,
-		IdleTimeout: time.Minute,
+		Addr:         app.cfg.addr,
+		Handler:      h,
+		ReadTimeout:   time.Second * 30,
+		WriteTimeout:  time.Second * 10,
+		IdleTimeout:  time.Minute,
 	}
-	log.Printf("server is running on port: %s", app.cfg.addr)
-	return srv.ListenAndServe()
+
+	serverErr := make(chan error, 1)
+
+	go func() {
+		log.Printf("server is running on port: %s", app.cfg.addr)
+		serverErr <- srv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-serverErr:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+
+	case <-ctx.Done():
+		log.Println("shutting down HTTP server...")
+
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(),
+			10*time.Second,
+		)
+		defer cancel()
+
+		return srv.Shutdown(shutdownCtx)
+	}
 }
 
 type application struct {
