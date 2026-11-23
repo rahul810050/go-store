@@ -11,6 +11,77 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const activateDiscountCampaign = `-- name: ActivateDiscountCampaign :one
+UPDATE discount_campaigns
+SET status='active',
+    updated_at=NOW()
+WHERE id=$1 AND status='draft'
+RETURNING id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at
+`
+
+func (q *Queries) ActivateDiscountCampaign(ctx context.Context, id int64) (DiscountCampaign, error) {
+	row := q.db.QueryRow(ctx, activateDiscountCampaign, id)
+	var i DiscountCampaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.DiscountType,
+		&i.DiscountValue,
+		&i.StartAt,
+		&i.EndAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const addProductToDiscountCampaign = `-- name: AddProductToDiscountCampaign :exec
+INSERT INTO discount_campaigns_products (
+    campaign_id,
+    product_id
+)
+VALUES ($1, $2)
+ON CONFLICT (campaign_id, product_id) DO NOTHING
+`
+
+type AddProductToDiscountCampaignParams struct {
+	CampaignID int64 `json:"campaign_id"`
+	ProductID  int64 `json:"product_id"`
+}
+
+func (q *Queries) AddProductToDiscountCampaign(ctx context.Context, arg AddProductToDiscountCampaignParams) error {
+	_, err := q.db.Exec(ctx, addProductToDiscountCampaign, arg.CampaignID, arg.ProductID)
+	return err
+}
+
+const cancelDiscountCampaign = `-- name: CancelDiscountCampaign :one
+UPDATE discount_campaigns
+SET status='cancelled',
+    updated_at=NOW()
+WHERE id=$1 AND status IN ('draft', 'active')
+RETURNING id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at
+`
+
+func (q *Queries) CancelDiscountCampaign(ctx context.Context, id int64) (DiscountCampaign, error) {
+	row := q.db.QueryRow(ctx, cancelDiscountCampaign, id)
+	var i DiscountCampaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.DiscountType,
+		&i.DiscountValue,
+		&i.StartAt,
+		&i.EndAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const claimPendingWebhookEvent = `-- name: ClaimPendingWebhookEvent :one
 WITH next_event AS (
     SELECT id
@@ -49,6 +120,53 @@ func (q *Queries) ClaimPendingWebhookEvent(ctx context.Context) (WebhookEvent, e
 		&i.ProcessedAt,
 		&i.NextAttemptAt,
 		&i.ProcessingStartedAt,
+	)
+	return i, err
+}
+
+const createDiscountCampaign = `-- name: CreateDiscountCampaign :one
+INSERT INTO discount_campaigns (
+    name,
+    description,
+    discount_type,
+    discount_value,
+    start_at,
+    end_at
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at
+`
+
+type CreateDiscountCampaignParams struct {
+	Name          string             `json:"name"`
+	Description   pgtype.Text        `json:"description"`
+	DiscountType  string             `json:"discount_type"`
+	DiscountValue int32              `json:"discount_value"`
+	StartAt       pgtype.Timestamptz `json:"start_at"`
+	EndAt         pgtype.Timestamptz `json:"end_at"`
+}
+
+func (q *Queries) CreateDiscountCampaign(ctx context.Context, arg CreateDiscountCampaignParams) (DiscountCampaign, error) {
+	row := q.db.QueryRow(ctx, createDiscountCampaign,
+		arg.Name,
+		arg.Description,
+		arg.DiscountType,
+		arg.DiscountValue,
+		arg.StartAt,
+		arg.EndAt,
+	)
+	var i DiscountCampaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.DiscountType,
+		&i.DiscountValue,
+		&i.StartAt,
+		&i.EndAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -305,6 +423,30 @@ func (q *Queries) FindProductByID(ctx context.Context, id int64) (Product, error
 	return i, err
 }
 
+const getDiscountCampaignByID = `-- name: GetDiscountCampaignByID :one
+SELECT id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at FROM discount_campaigns
+WHERE id=$1
+LIMIT 1
+`
+
+func (q *Queries) GetDiscountCampaignByID(ctx context.Context, id int64) (DiscountCampaign, error) {
+	row := q.db.QueryRow(ctx, getDiscountCampaignByID, id)
+	var i DiscountCampaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.DiscountType,
+		&i.DiscountValue,
+		&i.StartAt,
+		&i.EndAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getOrderByID = `-- name: GetOrderByID :one
 SELECT id, user_id, total_amount, status, created_at, updated_at FROM orders
 WHERE id=$1 AND user_id=$2
@@ -499,6 +641,162 @@ func (q *Queries) GetValidRefreshToken(ctx context.Context, tokenHash string) (R
 	return i, err
 }
 
+const listDiscountCampaigns = `-- name: ListDiscountCampaigns :many
+SELECT id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at FROM discount_campaigns
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListDiscountCampaigns(ctx context.Context) ([]DiscountCampaign, error) {
+	rows, err := q.db.Query(ctx, listDiscountCampaigns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscountCampaign
+	for rows.Next() {
+		var i DiscountCampaign
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.DiscountType,
+			&i.DiscountValue,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDiscountCampaignsByProduct = `-- name: ListDiscountCampaignsByProduct :many
+SELECT dc.id, dc.name, dc.description, dc.discount_type, dc.discount_value, dc.start_at, dc.end_at, dc.status, dc.created_at, dc.updated_at
+FROM discount_campaigns dc
+INNER JOIN discount_campaigns_products dcp
+    ON dcp.campaign_id = dc.id
+WHERE dcp.product_id = $1
+ORDER BY dc.created_at DESC
+`
+
+func (q *Queries) ListDiscountCampaignsByProduct(ctx context.Context, productID int64) ([]DiscountCampaign, error) {
+	rows, err := q.db.Query(ctx, listDiscountCampaignsByProduct, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscountCampaign
+	for rows.Next() {
+		var i DiscountCampaign
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.DiscountType,
+			&i.DiscountValue,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDiscountCampaignsByStatus = `-- name: ListDiscountCampaignsByStatus :many
+SELECT id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at FROM discount_campaigns
+WHERE status=$1
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListDiscountCampaignsByStatus(ctx context.Context, status string) ([]DiscountCampaign, error) {
+	rows, err := q.db.Query(ctx, listDiscountCampaignsByStatus, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscountCampaign
+	for rows.Next() {
+		var i DiscountCampaign
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.DiscountType,
+			&i.DiscountValue,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEligibleDiscountCampaignsByProduct = `-- name: ListEligibleDiscountCampaignsByProduct :many
+SELECT dc.id, dc.name, dc.description, dc.discount_type, dc.discount_value, dc.start_at, dc.end_at, dc.status, dc.created_at, dc.updated_at
+FROM discount_campaigns dc
+INNER JOIN discount_campaigns_products dcp
+    ON dcp.campaign_id = dc.id
+WHERE dcp.product_id = $1
+  AND dc.status = 'active'
+  AND dc.start_at <= NOW()
+  AND dc.end_at > NOW()
+ORDER BY dc.created_at DESC
+`
+
+func (q *Queries) ListEligibleDiscountCampaignsByProduct(ctx context.Context, productID int64) ([]DiscountCampaign, error) {
+	rows, err := q.db.Query(ctx, listEligibleDiscountCampaignsByProduct, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscountCampaign
+	for rows.Next() {
+		var i DiscountCampaign
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.DiscountType,
+			&i.DiscountValue,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOrderItemsByOrderID = `-- name: ListOrderItemsByOrderID :many
 SELECT id, order_id, product_id, quantity, unit_price, subtotal FROM order_items
 WHERE order_id=$1
@@ -631,6 +929,40 @@ func (q *Queries) ListProducts(ctx context.Context) ([]Product, error) {
 	return items, nil
 }
 
+const listProductsByDiscountCampaign = `-- name: ListProductsByDiscountCampaign :many
+SELECT p.id, p.name, p.price, p.quantity, p.created_at FROM products p 
+INNER JOIN discount_campaigns_products dcp 
+    ON dcp.product_id=p.id
+WHERE dcp.campaign_id=$1
+ORDER BY p.id
+`
+
+func (q *Queries) ListProductsByDiscountCampaign(ctx context.Context, campaignID int64) ([]Product, error) {
+	rows, err := q.db.Query(ctx, listProductsByDiscountCampaign, campaignID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Product
+	for rows.Next() {
+		var i Product
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Price,
+			&i.Quantity,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markWebhookEventAsFailed = `-- name: MarkWebhookEventAsFailed :exec
 UPDATE webhook_events
 SET status = 'failed',
@@ -683,6 +1015,24 @@ func (q *Queries) RecoverStaleWebhookEvents(ctx context.Context) error {
 	return err
 }
 
+const removeProductFromDiscountCampaign = `-- name: RemoveProductFromDiscountCampaign :execrows
+DELETE FROM discount_campaigns_products
+WHERE campaign_id=$1 AND product_id=$2
+`
+
+type RemoveProductFromDiscountCampaignParams struct {
+	CampaignID int64 `json:"campaign_id"`
+	ProductID  int64 `json:"product_id"`
+}
+
+func (q *Queries) RemoveProductFromDiscountCampaign(ctx context.Context, arg RemoveProductFromDiscountCampaignParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeProductFromDiscountCampaign, arg.CampaignID, arg.ProductID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
 UPDATE refresh_tokens
 SET revoked_at = NOW()
@@ -705,6 +1055,55 @@ WHERE family_id = $1
 func (q *Queries) RevokeRefreshTokenFamily(ctx context.Context, familyID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, revokeRefreshTokenFamily, familyID)
 	return err
+}
+
+const updateDiscountCampaign = `-- name: UpdateDiscountCampaign :one
+UPDATE discount_campaigns
+SET name=$2,
+    description=$3,
+    discount_type=$4,
+    discount_value=$5,
+    start_at=$6,
+    end_at=$7,
+    updated_at=NOw()
+WHERE id=$1 AND status='draft'
+RETURNING id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at
+`
+
+type UpdateDiscountCampaignParams struct {
+	ID            int64              `json:"id"`
+	Name          string             `json:"name"`
+	Description   pgtype.Text        `json:"description"`
+	DiscountType  string             `json:"discount_type"`
+	DiscountValue int32              `json:"discount_value"`
+	StartAt       pgtype.Timestamptz `json:"start_at"`
+	EndAt         pgtype.Timestamptz `json:"end_at"`
+}
+
+func (q *Queries) UpdateDiscountCampaign(ctx context.Context, arg UpdateDiscountCampaignParams) (DiscountCampaign, error) {
+	row := q.db.QueryRow(ctx, updateDiscountCampaign,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.DiscountType,
+		arg.DiscountValue,
+		arg.StartAt,
+		arg.EndAt,
+	)
+	var i DiscountCampaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.DiscountType,
+		&i.DiscountValue,
+		&i.StartAt,
+		&i.EndAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateOrderStatus = `-- name: UpdateOrderStatus :one

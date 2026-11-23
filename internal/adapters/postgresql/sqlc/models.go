@@ -8,6 +8,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type DiscountCampaign struct {
+	ID            int64              `json:"id"`
+	Name          string             `json:"name"`
+	Description   pgtype.Text        `json:"description"`
+	DiscountType  string             `json:"discount_type"`
+	DiscountValue int32              `json:"discount_value"`
+	StartAt       pgtype.Timestamptz `json:"start_at"`
+	EndAt         pgtype.Timestamptz `json:"end_at"`
+	Status        string             `json:"status"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type DiscountCampaignsProduct struct {
+	CampaignID int64 `json:"campaign_id"`
+	ProductID  int64 `json:"product_id"`
+}
+
 type Order struct {
 	ID          int64              `json:"id"`
 	UserID      int64              `json:"user_id"`

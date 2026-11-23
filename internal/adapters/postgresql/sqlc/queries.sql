@@ -226,3 +226,105 @@ SET status = 'failed',
     processing_started_at = NULL
 WHERE status = 'processing'
   AND processing_started_at < NOW() - INTERVAL '5 minutes';
+
+
+-- name: CreateDiscountCampaign :one
+INSERT INTO discount_campaigns (
+    name,
+    description,
+    discount_type,
+    discount_value,
+    start_at,
+    end_at
+)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *;
+
+
+-- name: GetDiscountCampaignByID :one
+SELECT * FROM discount_campaigns
+WHERE id=$1
+LIMIT 1;
+
+
+-- name: ListDiscountCampaigns :many
+SELECT * FROM discount_campaigns
+ORDER BY created_at DESC;
+
+
+-- name: ListDiscountCampaignsByStatus :many
+SELECT * FROM discount_campaigns
+WHERE status=$1
+ORDER BY created_at DESC;
+
+
+-- name: UpdateDiscountCampaign :one
+UPDATE discount_campaigns
+SET name=$2,
+    description=$3,
+    discount_type=$4,
+    discount_value=$5,
+    start_at=$6,
+    end_at=$7,
+    updated_at=NOw()
+WHERE id=$1 AND status='draft'
+RETURNING *;
+
+
+-- name: ActivateDiscountCampaign :one
+UPDATE discount_campaigns
+SET status='active',
+    updated_at=NOW()
+WHERE id=$1 AND status='draft'
+RETURNING *;
+
+
+-- name: CancelDiscountCampaign :one
+UPDATE discount_campaigns
+SET status='cancelled',
+    updated_at=NOW()
+WHERE id=$1 AND status IN ('draft', 'active')
+RETURNING *;
+
+
+-- name: AddProductToDiscountCampaign :exec
+INSERT INTO discount_campaigns_products (
+    campaign_id,
+    product_id
+)
+VALUES ($1, $2)
+ON CONFLICT (campaign_id, product_id) DO NOTHING;
+
+
+-- name: RemoveProductFromDiscountCampaign :execrows
+DELETE FROM discount_campaigns_products
+WHERE campaign_id=$1 AND product_id=$2;
+
+
+-- name: ListProductsByDiscountCampaign :many
+SELECT p.* FROM products p 
+INNER JOIN discount_campaigns_products dcp 
+    ON dcp.product_id=p.id
+WHERE dcp.campaign_id=$1
+ORDER BY p.id;
+
+
+-- name: ListDiscountCampaignsByProduct :many
+SELECT dc.*
+FROM discount_campaigns dc
+INNER JOIN discount_campaigns_products dcp
+    ON dcp.campaign_id = dc.id
+WHERE dcp.product_id = $1
+ORDER BY dc.created_at DESC;
+
+
+-- name: ListEligibleDiscountCampaignsByProduct :many
+SELECT dc.*
+FROM discount_campaigns dc
+INNER JOIN discount_campaigns_products dcp
+    ON dcp.campaign_id = dc.id
+WHERE dcp.product_id = $1
+  AND dc.status = 'active'
+  AND dc.start_at <= NOW()
+  AND dc.end_at > NOW()
+ORDER BY dc.created_at DESC;

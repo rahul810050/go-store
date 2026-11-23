@@ -11,7 +11,11 @@ import (
 )
 
 type Querier interface {
+	ActivateDiscountCampaign(ctx context.Context, id int64) (DiscountCampaign, error)
+	AddProductToDiscountCampaign(ctx context.Context, arg AddProductToDiscountCampaignParams) error
+	CancelDiscountCampaign(ctx context.Context, id int64) (DiscountCampaign, error)
 	ClaimPendingWebhookEvent(ctx context.Context) (WebhookEvent, error)
+	CreateDiscountCampaign(ctx context.Context, arg CreateDiscountCampaignParams) (DiscountCampaign, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateOrderItem(ctx context.Context, arg CreateOrderItemParams) (OrderItem, error)
 	CreatePayment(ctx context.Context, arg CreatePaymentParams) (Payment, error)
@@ -21,6 +25,7 @@ type Querier interface {
 	CreateWebhookEvent(ctx context.Context, arg CreateWebhookEventParams) error
 	DecreaseProductStock(ctx context.Context, arg DecreaseProductStockParams) (Product, error)
 	FindProductByID(ctx context.Context, id int64) (Product, error)
+	GetDiscountCampaignByID(ctx context.Context, id int64) (DiscountCampaign, error)
 	GetOrderByID(ctx context.Context, arg GetOrderByIDParams) (Order, error)
 	GetPaymentByID(ctx context.Context, id int64) (Payment, error)
 	GetPaymentByIDForUpdate(ctx context.Context, id int64) (Payment, error)
@@ -29,15 +34,22 @@ type Querier interface {
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int64) (GetUserByIDRow, error)
 	GetValidRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error)
+	ListDiscountCampaigns(ctx context.Context) ([]DiscountCampaign, error)
+	ListDiscountCampaignsByProduct(ctx context.Context, productID int64) ([]DiscountCampaign, error)
+	ListDiscountCampaignsByStatus(ctx context.Context, status string) ([]DiscountCampaign, error)
+	ListEligibleDiscountCampaignsByProduct(ctx context.Context, productID int64) ([]DiscountCampaign, error)
 	ListOrderItemsByOrderID(ctx context.Context, orderID int64) ([]OrderItem, error)
 	ListOrdersByUserID(ctx context.Context, userID int64) ([]Order, error)
 	ListPaymentsByOrderID(ctx context.Context, orderID int64) ([]Payment, error)
 	ListProducts(ctx context.Context) ([]Product, error)
+	ListProductsByDiscountCampaign(ctx context.Context, campaignID int64) ([]Product, error)
 	MarkWebhookEventAsFailed(ctx context.Context, arg MarkWebhookEventAsFailedParams) error
 	MarkWebhookEventAsProcessed(ctx context.Context, id int64) error
 	RecoverStaleWebhookEvents(ctx context.Context) error
+	RemoveProductFromDiscountCampaign(ctx context.Context, arg RemoveProductFromDiscountCampaignParams) (int64, error)
 	RevokeRefreshToken(ctx context.Context, tokenHash string) error
 	RevokeRefreshTokenFamily(ctx context.Context, familyID pgtype.UUID) error
+	UpdateDiscountCampaign(ctx context.Context, arg UpdateDiscountCampaignParams) (DiscountCampaign, error)
 	UpdateOrderStatus(ctx context.Context, arg UpdateOrderStatusParams) (Order, error)
 	UpdatePaymentProviderOrderID(ctx context.Context, arg UpdatePaymentProviderOrderIDParams) (Payment, error)
 	UpdatePaymentStatus(ctx context.Context, arg UpdatePaymentStatusParams) (Payment, error)

@@ -4,7 +4,7 @@ CREATE TABLE discount_campaigns (
     name TEXT NOT NULL,
     description TEXT,
     discount_type VARCHAR(20) NOT NULL CHECK (discount_type IN ('percentage', 'fixed')),
-    discount_value INTERGER NOT NULL CHECK (discount_value > 0),
+    discount_value INTEGER NOT NULL CHECK (discount_value > 0),
     start_at TIMESTAMPTZ NOT NULL,
     end_at TIMESTAMPTZ NOT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'cancelled')),
