@@ -273,9 +273,15 @@ RETURNING *;
 
 -- name: ActivateDiscountCampaign :one
 UPDATE discount_campaigns
-SET status='active',
-    updated_at=NOW()
-WHERE id=$1 AND status='draft'
+SET status = 'active',
+    updated_at = NOW()
+WHERE id = $1
+  AND status = 'draft'
+  AND EXISTS (
+      SELECT 1
+      FROM discount_campaigns_products
+      WHERE campaign_id = $1
+  )
 RETURNING *;
 
 
@@ -299,6 +305,13 @@ ON CONFLICT (campaign_id, product_id) DO NOTHING;
 -- name: RemoveProductFromDiscountCampaign :execrows
 DELETE FROM discount_campaigns_products
 WHERE campaign_id=$1 AND product_id=$2;
+
+
+-- name: GetDiscountCampaignForUpdate :one
+SELECT *
+FROM discount_campaigns
+WHERE id = $1
+FOR UPDATE;
 
 
 -- name: ListProductsByDiscountCampaign :many
@@ -328,3 +341,28 @@ WHERE dcp.product_id = $1
   AND dc.start_at <= NOW()
   AND dc.end_at > NOW()
 ORDER BY dc.created_at DESC;
+
+
+-- name: ListEligibleDiscountCampaigns :many
+SELECT *
+FROM discount_campaigns
+WHERE status = 'active'
+  AND start_at <= NOW()
+  AND end_at > NOW()
+ORDER BY created_at DESC;
+
+
+-- name: GetEligibleDiscountCampaignByID :one
+SELECT *
+FROM discount_campaigns
+WHERE id = $1
+  AND status = 'active'
+  AND start_at <= NOW()
+  AND end_at > NOW()
+LIMIT 1;
+
+
+-- name: CountProductsInDiscountCampaign :one
+SELECT COUNT(*)
+FROM discount_campaigns_products
+WHERE campaign_id = $1;

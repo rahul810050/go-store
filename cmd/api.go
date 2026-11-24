@@ -35,6 +35,7 @@ func (app *application) mount() http.Handler {
 	routes.RegisterOrderRoutes(r, app.db)
 	routes.RegisterPaymentRoutes(r, app.db, app.razorpayClient, app.cfg.RazorpayKeyID, app.cfg.RazorpayKeySecret)
 	routes.RegisterWebhookRoutes(r, app.db, app.cfg.RazorpayWebhookSecret)
+	routes.RegisterDiscountRoutes(r, app.db)
 
 	return r
 }

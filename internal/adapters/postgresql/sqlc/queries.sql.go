@@ -13,9 +13,15 @@ import (
 
 const activateDiscountCampaign = `-- name: ActivateDiscountCampaign :one
 UPDATE discount_campaigns
-SET status='active',
-    updated_at=NOW()
-WHERE id=$1 AND status='draft'
+SET status = 'active',
+    updated_at = NOW()
+WHERE id = $1
+  AND status = 'draft'
+  AND EXISTS (
+      SELECT 1
+      FROM discount_campaigns_products
+      WHERE campaign_id = $1
+  )
 RETURNING id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at
 `
 
@@ -122,6 +128,19 @@ func (q *Queries) ClaimPendingWebhookEvent(ctx context.Context) (WebhookEvent, e
 		&i.ProcessingStartedAt,
 	)
 	return i, err
+}
+
+const countProductsInDiscountCampaign = `-- name: CountProductsInDiscountCampaign :one
+SELECT COUNT(*)
+FROM discount_campaigns_products
+WHERE campaign_id = $1
+`
+
+func (q *Queries) CountProductsInDiscountCampaign(ctx context.Context, campaignID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, countProductsInDiscountCampaign, campaignID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const createDiscountCampaign = `-- name: CreateDiscountCampaign :one
@@ -447,6 +466,59 @@ func (q *Queries) GetDiscountCampaignByID(ctx context.Context, id int64) (Discou
 	return i, err
 }
 
+const getDiscountCampaignForUpdate = `-- name: GetDiscountCampaignForUpdate :one
+SELECT id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at
+FROM discount_campaigns
+WHERE id = $1
+FOR UPDATE
+`
+
+func (q *Queries) GetDiscountCampaignForUpdate(ctx context.Context, id int64) (DiscountCampaign, error) {
+	row := q.db.QueryRow(ctx, getDiscountCampaignForUpdate, id)
+	var i DiscountCampaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.DiscountType,
+		&i.DiscountValue,
+		&i.StartAt,
+		&i.EndAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getEligibleDiscountCampaignByID = `-- name: GetEligibleDiscountCampaignByID :one
+SELECT id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at
+FROM discount_campaigns
+WHERE id = $1
+  AND status = 'active'
+  AND start_at <= NOW()
+  AND end_at > NOW()
+LIMIT 1
+`
+
+func (q *Queries) GetEligibleDiscountCampaignByID(ctx context.Context, id int64) (DiscountCampaign, error) {
+	row := q.db.QueryRow(ctx, getEligibleDiscountCampaignByID, id)
+	var i DiscountCampaign
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.DiscountType,
+		&i.DiscountValue,
+		&i.StartAt,
+		&i.EndAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getOrderByID = `-- name: GetOrderByID :one
 SELECT id, user_id, total_amount, status, created_at, updated_at FROM orders
 WHERE id=$1 AND user_id=$2
@@ -725,6 +797,46 @@ ORDER BY created_at DESC
 
 func (q *Queries) ListDiscountCampaignsByStatus(ctx context.Context, status string) ([]DiscountCampaign, error) {
 	rows, err := q.db.Query(ctx, listDiscountCampaignsByStatus, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscountCampaign
+	for rows.Next() {
+		var i DiscountCampaign
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.DiscountType,
+			&i.DiscountValue,
+			&i.StartAt,
+			&i.EndAt,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEligibleDiscountCampaigns = `-- name: ListEligibleDiscountCampaigns :many
+SELECT id, name, description, discount_type, discount_value, start_at, end_at, status, created_at, updated_at
+FROM discount_campaigns
+WHERE status = 'active'
+  AND start_at <= NOW()
+  AND end_at > NOW()
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListEligibleDiscountCampaigns(ctx context.Context) ([]DiscountCampaign, error) {
+	rows, err := q.db.Query(ctx, listEligibleDiscountCampaigns)
 	if err != nil {
 		return nil, err
 	}
